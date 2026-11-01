@@ -1,0 +1,24 @@
+.env
+.venv/
+node_modules/
+dist/
+data/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Respaldos y versiones comprimidas
+backups/
+*.zip
+
+# Archivos temporales y locales
+*.log
+.vscode/
+.idea/
+.DS_Store
+
+# Archivos sensibles
+.env.*
+!.env.example
+
+*.bak-*

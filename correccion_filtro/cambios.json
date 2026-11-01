@@ -1,0 +1,26 @@
+[
+  {
+    "old": "import {selectableScope} from './selection';",
+    "new": "import {selectableScope,isDialogueCandidate} from './selection';"
+  },
+  {
+    "old": "const visibleSegments=(ch?.segments||[]).filter(x=>(showExcluded||!x.excluded&&!x.is_separator)&&(sceneView==='all'||x.scene===Number(sceneView)));",
+    "new": "const sceneSegments=(ch?.segments||[]).filter(x=>(showExcluded||!x.excluded&&!x.is_separator)&&(sceneView==='all'||x.scene===Number(sceneView)));\nconst visibleSegments=multi&&allScope==='dialogues'?sceneSegments.filter(isDialogueCandidate):sceneSegments;"
+  },
+  {
+    "old": "onClick={()=>{setMulti(!multi);setCheckedIds([])}}",
+    "new": "onClick={()=>{player.current?.pause();setMulti(!multi);setCheckedIds([]);setSid('')}}"
+  },
+  {
+    "old": "setAllScope(e.target.value);setCheckedIds([])",
+    "new": "player.current?.pause();setAllScope(e.target.value);setCheckedIds([]);setSid('')"
+  },
+  {
+    "old": "<p>Pulsa una tarjeta del elenco",
+    "new": "<p>Mostrando {visibleSegments.length} {allScope==='dialogues'?'diálogos y candidatos':'fragmentos'} en esta vista. Seleccionar todos marca todas sus casillas habilitadas.</p><p>Pulsa una tarjeta del elenco"
+  },
+  {
+    "old": "'No hay fragmentos incluidos en esta vista.'}</p>",
+    "new": "'No hay fragmentos incluidos en esta vista.'}{allScope==='dialogues'&&<button disabled={busy} onClick={()=>{setAllScope('all');setCheckedIds([]);setSid('')}}>Mostrar todos los fragmentos</button>}</p>"
+  }
+]
