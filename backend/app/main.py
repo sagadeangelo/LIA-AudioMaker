@@ -1,3 +1,4 @@
+from . import kokoro
 import os, json, uuid, subprocess, shutil, wave, struct, threading
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -27,7 +28,7 @@ def get(pid,include_deleted=False):
     with engine.connect() as c: row = c.execute(sql('SELECT payload FROM projects WHERE id=:id'), {'id':pid}).first()
     if not row: raise HTTPException(404,'Proyecto no encontrado')
     p=json.loads(row[0])
-    if p.get('deleted_at') and not include_deleted: raise HTTPException(404,'Proyecto en la papelera; restáuralo para abrirlo')
+    if p.get('deleted_at') and not include_deleted: raise HTTPException(404,'Proyecto en la papelera; restÃ¡uralo para abrirlo')
     ensure_cast(p); detect_scenes(p); return p
 def segment(p, sid):
     for ch in p['chapters']:
@@ -41,22 +42,40 @@ class Project(BaseModel):
     title: str = Field(min_length=1,max_length=200)
 class Edit(BaseModel):
     speaker: str = Field(min_length=1,max_length=100)
-    voice: str = Field(pattern=r'^(es|en)(\+m[1-7]|\+f[1-5])?$')
-    speed: int = Field(default=160,ge=80,le=300)
+    voice: str = Field(pattern=r'^(em_santa|em_alex|ef_dora|es-(MX|ES)-[A-Za-z0-9]+Neural)$')
+    speed: float = Field(default=1.0,gt=0)
     color: str = Field(default='#00D9CE',pattern=r'^#[0-9a-fA-F]{6}$')
     reviewed: bool = False
+    @field_validator('speed')
+    @classmethod
+    def validate_speed(cls, value, info):
+        from .tts_provider import normalize_speed
+        voice = info.data.get('voice', 'em_santa')
+        try:
+            return normalize_speed(voice, value)
+        except (ValueError, TypeError, OverflowError) as exc:
+            raise ValueError(str(exc)) from exc
     @field_validator('speaker')
     @classmethod
     def valid_speaker(cls,value):
         value=value.strip()
-        if not value or key(value) in ('sin atribuir','sin asignar'): raise ValueError('Selecciona un hablante válido')
+        if not value or key(value) in ('sin atribuir','sin asignar'): raise ValueError('Selecciona un hablante vÃ¡lido')
         return value
 
 class Character(BaseModel):
     name: str = Field(min_length=1,max_length=100)
-    voice: str = Field(default='es',pattern=r'^(es|en)(\+m[1-7]|\+f[1-5])?$')
-    speed: int = Field(default=160,ge=80,le=300)
+    voice: str = Field(default='em_santa',pattern=r'^(em_santa|em_alex|ef_dora|es-(MX|ES)-[A-Za-z0-9]+Neural)$')
+    speed: float = Field(default=1.0,gt=0)
     color: str = Field(default='#F018A8',pattern=r'^#[0-9a-fA-F]{6}$')
+    @field_validator('speed')
+    @classmethod
+    def validate_speed(cls, value, info):
+        from .tts_provider import normalize_speed
+        voice = info.data.get('voice', 'em_santa')
+        try:
+            return normalize_speed(voice, value)
+        except (ValueError, TypeError, OverflowError) as exc:
+            raise ValueError(str(exc)) from exc
     @field_validator('name')
     @classmethod
     def valid_name(cls,value): return Edit.valid_speaker(value)
@@ -70,7 +89,7 @@ class UndoAssignment(BaseModel):
 @app.get('/api/health')
 def health():
     with engine.connect() as c: c.execute(sql('SELECT 1'))
-    return {'status':'ok','database':'ok','tts': bool(shutil.which('espeak-ng') or shutil.which('espeak')), 'ffmpeg':bool(shutil.which('ffmpeg'))}
+    return {'status':'ok','database':'ok','tts': kokoro.available(), 'ffmpeg':bool(shutil.which('ffmpeg'))}
 @app.get('/api/projects')
 def projects(trash:bool=False):
     with engine.connect() as c:
@@ -85,6 +104,14 @@ def create(body: Project):
     ensure_cast(p)
     with engine.begin() as c: c.execute(sql('INSERT INTO projects VALUES (:id,:p)'), {'id':p['id'],'p':json.dumps(p)})
     return p
+
+
+@app.get('/api/projects/{pid}/audio-library')
+def audio_library(pid: str):
+    from .audio_library import build_audio_library
+    return build_audio_library(get(pid), DATA)
+
+
 @app.get('/api/projects/{pid}')
 def project(pid:str): return get(pid)
 @app.post('/api/projects/{pid}/manuscript')
@@ -93,7 +120,7 @@ async def manuscript(pid:str, file:UploadFile):
     if len(data)>15_000_000: raise HTTPException(413,'Limite: 15 MB')
     try: original = extract(data,Path(file.filename or '').suffix.lower())
     except Exception as e: raise HTTPException(422,'No se pudo extraer el manuscrito: '+str(e))
-    if not original.strip(): raise HTTPException(422,'Sin texto extraíble. PDF escaneado requiere OCR externo.')
+    if not original.strip(): raise HTTPException(422,'Sin texto extraÃ­ble. PDF escaneado requiere OCR externo.')
     with lock:
         p=get(pid)
         if p['original']: raise HTTPException(409,'Crea otro proyecto para conservar el manuscrito existente')
@@ -104,7 +131,7 @@ async def manuscript(pid:str, file:UploadFile):
         p['source_filename']=file.filename
         for ch in analyze(original):
             ch['id']=str(uuid.uuid4())
-            for s in ch['segments']: s.update(id=str(uuid.uuid4()),voice='es',speed=160,color='#9C68FF' if s.get('kind') == 'thought_or_quote' else ('#F018A8' if s['speaker'] != 'Narrador' else '#00D9CE'),versions=[],audio=None)
+            for s in ch['segments']: s.update(id=str(uuid.uuid4()),voice='em_santa',speed=1.0,color='#9C68FF' if s.get('kind') == 'thought_or_quote' else ('#F018A8' if s['speaker'] != 'Narrador' else '#00D9CE'),versions=[],audio=None)
             p['chapters'].append(ch)
         ensure_cast(p); p.pop('scene_rules_version',None); detect_scenes(p); save(p)
     return p
@@ -124,49 +151,86 @@ def edit(pid:str,sid:str,body:Edit):
     return p
 @app.get('/api/voices')
 def voices():
-    return {'provider':'espeak-ng','available':bool(shutil.which('espeak-ng') or shutil.which('espeak')), 'capabilities':{'emotion':False,'speed':True,'cloning':False},'voices':['es','es+f2','es+m3','en','en+f2','en+m3']}
+    from .tts_provider import catalog
+
+    result = catalog()
+    providers = result["providers"]
+
+    kokoro_info = providers["kokoro"]
+    azure_info = providers["azure"]
+
+    result.update(
+        provider="multi",
+        available=(
+            kokoro_info["available"]
+            or azure_info["available"]
+        ),
+        features={
+            "speed": True,
+            "cloning": False,
+        },
+        voices=(
+            kokoro_info["voices"]
+            + azure_info["voices"]
+        ),
+    )
+
+    return result
 @app.post('/api/projects/{pid}/segments/{sid}/generate')
 def generate(pid:str,sid:str,compact:bool=False):
-    executable=shutil.which('espeak-ng') or shutil.which('espeak')
-    if not executable: raise HTTPException(503,'Instala eSpeak NG y agrégalo a PATH. No hay motor TTS disponible.')
+    from .tts_provider import generate as synthesize, provider_for_voice
+    from .kokoro import KokoroError
+    from .azure import AzureSpeechError
     with lock:
         p=get(pid); s=segment(p,sid)
-        if not included(s): raise HTTPException(409,'El fragmento está fuera del audiolibro o es un separador')
-        if s['review']: raise HTTPException(409,'Confirma el hablante y la revisión del contenido antes de generar')
+        if not included(s): raise HTTPException(409,'El fragmento estÃ¡ fuera del audiolibro o es un separador')
+        if s['review']: raise HTTPException(409,'Confirma el hablante y la revisiÃ³n del contenido antes de generar')
         name=str(uuid.uuid4())+'.wav'; path=DATA/name
-        try: subprocess.run([executable,'-v',s['voice'],'-s',str(s['speed']),'-w',str(path),'--stdin'], input=s['text'],text=True,check=True,capture_output=True,timeout=60)
-        except (subprocess.SubprocessError,OSError): raise HTTPException(502,'Error en motor TTS; no se modificó el fragmento')
-        with wave.open(str(path)) as w: duration=w.getnframes()/w.getframerate()
-        s['versions'].append({'file':name,'voice':s['voice'],'speed':s['speed'],'text':s['text']}); s['audio']=name; s['duration']=duration; s['revision']=s.get('revision',0)+1; save(p)
+        try:
+            result=synthesize(s['text'],s['voice'],s['speed'],path)
+        except (ValueError, TypeError) as exc:
+            path.unlink(missing_ok=True)
+            raise HTTPException(422,str(exc)) from exc
+        except (KokoroError, AzureSpeechError, subprocess.SubprocessError, OSError, RuntimeError) as exc:
+            path.unlink(missing_ok=True)
+            raise HTTPException(502,'Error en motor TTS; no se modificÃ³ el fragmento') from exc
+        s.setdefault('versions',[]).append({'file':name,'voice':s['voice'],'speed':s['speed'],'text':s['text'],'provider':result['provider']})
+        s['audio']=name; s['duration']=result['duration']; s['revision']=s.get('revision',0)+1; save(p)
     return {'segment':s} if compact else p
 @app.get('/api/audio/{name}')
 def audio(name:str):
-    if Path(name).name != name or Path(name).suffix not in ('.wav','.mp3'): raise HTTPException(400,'Nombre inválido')
+    if Path(name).name != name or Path(name).suffix not in ('.wav','.mp3'): raise HTTPException(400,'Nombre invÃ¡lido')
     path=DATA/name
     if not path.is_file(): raise HTTPException(404,'Audio no encontrado')
     return FileResponse(path)
 @app.get('/api/audio/{name}/waveform')
 def waveform(name:str):
-    if Path(name).name != name or not name.endswith('.wav'): raise HTTPException(400,'Nombre inválido')
+    if Path(name).name != name or not name.endswith('.wav'): raise HTTPException(400,'Nombre invÃ¡lido')
     if not (DATA/name).is_file(): raise HTTPException(404)
     with wave.open(str(DATA/name)) as w:
         if w.getsampwidth()!=2: raise HTTPException(422,'PCM16 requerido')
         samples=struct.unpack('<'+'h'*w.getnframes()*w.getnchannels(),w.readframes(w.getnframes()))
     step=max(1,len(samples)//180)
     return [max(abs(x) for x in samples[i:i+step])/32768 for i in range(0,len(samples),step)]
+
+@app.get('/api/projects/{pid}/export-book')
+def export_complete_book(pid: str, format: str = 'mp3', partial: bool = False):
+    from .book_export import export_book
+    return export_book(get(pid), DATA, format, partial)
+
 @app.get('/api/projects/{pid}/chapters/{cid}/export')
 def export(pid:str,cid:str,format:str='wav'):
-    if format not in ('wav','mp3'): raise HTTPException(422,'Formato inválido')
+    if format not in ('wav','mp3'): raise HTTPException(422,'Formato invÃ¡lido')
     p=get(pid); ch=next((x for x in p['chapters'] if x['id']==cid),None)
     if not ch: raise HTTPException(404)
     active=[s for s in ch['segments'] if included(s)]
-    if not active: raise HTTPException(409,'El capítulo no tiene fragmentos incluidos')
-    if any(not s['audio'] for s in active): raise HTTPException(409,'Genera todos los fragmentos incluidos del capítulo')
+    if not active: raise HTTPException(409,'El capÃ­tulo no tiene fragmentos incluidos')
+    if any(not s['audio'] for s in active): raise HTTPException(409,'Genera todos los fragmentos incluidos del capÃ­tulo')
     if not shutil.which('ffmpeg'): raise HTTPException(503,'FFmpeg no disponible')
     token=str(uuid.uuid4()); listing=DATA/(token+'.txt'); output=DATA/(token+'.'+format)
     listing.write_text('\n'.join("file '"+s['audio']+"'" for s in active),encoding='utf-8')
     try: subprocess.run(['ffmpeg','-v','error','-f','concat','-safe','1','-i',str(listing),'-af','loudnorm=I=-19:TP=-2:LRA=7','-y',str(output)],check=True,capture_output=True,timeout=300)
-    except subprocess.SubprocessError: raise HTTPException(502,'Falló exportación')
+    except subprocess.SubprocessError: raise HTTPException(502,'FallÃ³ exportaciÃ³n')
     finally: listing.unlink(missing_ok=True)
     return FileResponse(output,filename='capitulo.'+format)
 
@@ -212,9 +276,18 @@ class BatchAssignment(BaseModel):
     segment_ids: list[str] = Field(min_length=1,max_length=5000)
 class VoiceChoice(BaseModel):
     id: str
-    voice: str = Field(pattern=r'^(es|en)(\+m[1-7]|\+f[1-5])?$')
-    speed: int = Field(ge=80,le=300)
+    voice: str = Field(pattern=r'^(em_santa|em_alex|ef_dora|es-(MX|ES)-[A-Za-z0-9]+Neural)$')
+    speed: float = Field(gt=0)
     color: str = Field(pattern=r'^#[0-9a-fA-F]{6}$')
+    @field_validator('speed')
+    @classmethod
+    def validate_speed(cls, value, info):
+        from .tts_provider import normalize_speed
+        voice = info.data.get('voice', 'em_santa')
+        try:
+            return normalize_speed(voice, value)
+        except (ValueError, TypeError, OverflowError) as exc:
+            raise ValueError(str(exc)) from exc
 class CastChoices(BaseModel):
     characters: list[VoiceChoice] = Field(min_length=1,max_length=5000)
 
@@ -225,7 +298,7 @@ def assign_batch(pid:str,body:BatchAssignment):
         p=get(pid);character=next((c for c in p['characters'] if c['id']==body.character_id),None)
         if not character: raise HTTPException(404,'Personaje no encontrado')
         selected=[segment(p,sid) for sid in dict.fromkeys(body.segment_ids)]
-        if any(not included(s) for s in selected): raise HTTPException(409,'La selección contiene fragmentos fuera del audiolibro')
+        if any(not included(s) for s in selected): raise HTTPException(409,'La selecciÃ³n contiene fragmentos fuera del audiolibro')
         token=assign_many(p,selected,character);save(p)
     return {'project':p,'undo_token':token,'count':len(selected)}
 
@@ -245,7 +318,7 @@ def apply_casting(pid:str,body:CastChoices):
     with lock:
         p=get(pid); ids=[c.id for c in body.characters]
         if len(set(ids))!=len(ids) or set(ids)!={c['id'] for c in p['characters']}:
-            raise HTTPException(409,'El elenco cambió o faltan perfiles. Vuelve a abrir la configuración.')
+            raise HTTPException(409,'El elenco cambiÃ³ o faltan perfiles. Vuelve a abrir la configuraciÃ³n.')
         choices={c.id:c.model_dump(exclude={'id'}) for c in body.characters}
         for character in p['characters']:character.update(choices[character['id']])
         by_name={key(c['name']):c for c in p['characters']};updated=0;pending=0
@@ -261,18 +334,35 @@ def apply_casting(pid:str,body:CastChoices):
     return {'project':p,'updated':updated,'pending_review':pending}
 
 class VoicePreview(BaseModel):
-    voice: str = Field(pattern=r'^(es|en)(\+m[1-7]|\+f[1-5])?$')
-    speed: int = Field(default=160,ge=80,le=300)
+    voice: str = Field(pattern=r'^(em_santa|em_alex|ef_dora|es-(MX|ES)-[A-Za-z0-9]+Neural)$')
+    speed: float = Field(default=1.0,gt=0)
+    @field_validator('speed')
+    @classmethod
+    def validate_speed(cls, value, info):
+        from .tts_provider import normalize_speed
+        voice = info.data.get('voice', 'em_santa')
+        try:
+            return normalize_speed(voice, value)
+        except (ValueError, TypeError, OverflowError) as exc:
+            raise ValueError(str(exc)) from exc
 
 @app.post('/api/voices/preview')
 def preview_voice(body:VoicePreview):
-    executable=shutil.which('espeak-ng') or shutil.which('espeak')
-    if not executable: raise HTTPException(503,'Motor TTS no disponible')
+    from .tts_provider import generate as synthesize
+    from .kokoro import KokoroError
+    from .azure import AzureSpeechError
     name=str(uuid.uuid4())+'.wav'
-    sample='Hola. Esta es una muestra de mi voz para narrar tu historia.' if body.voice.startswith('es') else 'Hello. This is a sample of my voice to tell your story.'
-    try: subprocess.run([executable,'-v',body.voice,'-s',str(body.speed),'-w',str(DATA/name),'--stdin'],input=sample,text=True,check=True,capture_output=True,timeout=30)
-    except (subprocess.SubprocessError,OSError):raise HTTPException(502,'No se pudo generar la muestra')
-    return {'file':name}
+    sample='Hola. Esta es una muestra de mi voz para narrar tu historia.' if body.voice.startswith(('es','em_','ef_')) else 'Hello. This is a sample of my voice to tell your story.'
+    path=DATA/name
+    try:
+        result=synthesize(sample,body.voice,body.speed,path)
+    except (ValueError, TypeError) as exc:
+        path.unlink(missing_ok=True)
+        raise HTTPException(422,str(exc)) from exc
+    except (KokoroError, AzureSpeechError, subprocess.SubprocessError, OSError, RuntimeError) as exc:
+        path.unlink(missing_ok=True)
+        raise HTTPException(502,'No se pudo generar la muestra') from exc
+    return {'file':name,'provider':result['provider']}
 
 class InclusionChange(BaseModel):
     segment_ids: list[str] = Field(min_length=1,max_length=5000)
@@ -283,7 +373,7 @@ def set_inclusion(pid:str,body:InclusionChange):
     with lock:
         p=get(pid);selected=[segment(p,sid) for sid in dict.fromkeys(body.segment_ids)]
         if not body.excluded and any(is_separator(s) for s in selected):
-            raise HTTPException(409,'Las líneas separadoras no se narran; restaura solo los fragmentos de contenido')
+            raise HTTPException(409,'Las lÃ­neas separadoras no se narran; restaura solo los fragmentos de contenido')
         for s in selected:
             if s.get('excluded',False)!=body.excluded:
                 s['excluded']=body.excluded;s['revision']=s.get('revision',0)+1
@@ -312,3 +402,25 @@ def restore_project(pid:str):
         p=get(pid,include_deleted=True)
         if p.pop('deleted_at',None):save(p)
     return p
+
+
+@app.post('/api/projects/{pid}/export-book/jobs')
+def start_book_export_job(
+    pid: str,
+    format: str = 'mp3',
+    partial: bool = True,
+):
+    from .book_export_jobs import start
+    return start(get(pid), DATA, format, partial)
+
+
+@app.get('/api/export-book/jobs/{job_id}')
+def get_book_export_job(job_id: str):
+    from .book_export_jobs import status
+    return status(job_id)
+
+
+@app.get('/api/export-book/jobs/{job_id}/download')
+def download_book_export_job(job_id: str):
+    from .book_export_jobs import download
+    return download(job_id)

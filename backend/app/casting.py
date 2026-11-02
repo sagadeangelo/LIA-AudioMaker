@@ -17,14 +17,14 @@ def ensure_cast(p):
     # Narrator remains available even for an empty project.
     segments=[s for ch in p['chapters'] for s in ch['segments']]
     narrator=next((s for s in segments if key(s.get('speaker',''))=='narrador'),
-                  {'speaker':'Narrador','voice':'es','speed':160,'color':'#00D9CE'})
+                  {'speaker':'Narrador','voice':'em_santa','speed':1.0,'color':'#00D9CE'})
     seeds=[narrator]+segments
     for s in seeds:
         name=s.get('speaker','').strip()
         if not name or key(name) in ('sin atribuir','sin asignar') or key(name) in known: continue
         known.add(key(name))
         cast.append({'id':str(uuid.uuid5(uuid.NAMESPACE_URL,p['id']+':'+key(name))),
-            'name':name,'voice':s.get('voice','es'),'speed':s.get('speed',160),
+            'name':name,'voice':s.get('voice','em_santa'),'speed':s.get('speed',1.0),
             'color':s.get('color','#F018A8')})
     return cast
 

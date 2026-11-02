@@ -22,3 +22,16 @@ backups/
 !.env.example
 
 *.bak-*
+# LIA AudioMaker - archivos de prueba locales
+engines/kokoro/pruebas/
+reparar_main_estructura.py
+*.wav
+*.mp3
+*.mp4
+*.flac
+*.ogg
+*.sqlite
+*.sqlite3
+*.dump
+*.pem
+*.key

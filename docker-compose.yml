@@ -6,23 +6,36 @@ services:
       POSTGRES_USER: lia
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in .env}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+    - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [CMD-SHELL, "pg_isready -U lia -d lia_audiomaker"]
+      test:
+      - CMD-SHELL
+      - pg_isready -U lia -d lia_audiomaker
       interval: 5s
       timeout: 5s
       retries: 15
   backend:
     build: ./backend
-    ports: ["127.0.0.1:8000:8000"]
+    ports:
+    - 127.0.0.1:8000:8000
     environment:
       DATABASE_URL: postgresql+psycopg://lia:${POSTGRES_PASSWORD}@db:5432/lia_audiomaker
       DATA_DIR: /data
+      KOKORO_URL: http://lia_audiomaker_kokoro:8880
+      AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION}
+      AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY}
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - audio_data:/data
+    - audio_data:/data
+    networks:
+    - default
+    - tts
 volumes:
-  postgres_data:
-  audio_data:
+  postgres_data: null
+  audio_data: null
+networks:
+  tts:
+    external: true
+    name: lia_audiomaker_tts

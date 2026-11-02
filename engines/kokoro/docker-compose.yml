@@ -1,0 +1,16 @@
+services:
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    container_name: lia_audiomaker_kokoro
+    restart: unless-stopped
+    ports:
+    - 127.0.0.1:8880:8880
+    environment:
+    - PYTHONUNBUFFERED=1
+    networks:
+    - default
+    - tts
+networks:
+  tts:
+    external: true
+    name: lia_audiomaker_tts

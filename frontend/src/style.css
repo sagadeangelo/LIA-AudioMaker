@@ -5,3 +5,60 @@
 .cast-setup .voice-preview{display:block;font-size:10px;padding:6px 8px;margin-top:8px}
 .scene-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px;margin:14px 0;border:1px solid var(--lia-border);border-radius:7px;background:var(--lia-panel)}.scene-toolbar label{display:flex;align-items:center;gap:7px;font-size:12px}.scene-toolbar select,.scene-toolbar button{font-size:11px}.scene-toolbar small{width:100%;line-height:1.6}.remove-action{border-color:#FF526B80;color:#FF9DAD}.excluded-fragment{opacity:.6;border-style:dashed!important}.scene-toolbar input{accent-color:var(--lia-turquoise)}
 .project-trash{width:min(700px,94vw);max-height:85vh;overflow:auto;background:var(--lia-panel);color:var(--lia-text);border:1px solid var(--lia-purple);border-radius:10px;padding:25px}.project-trash::backdrop{background:#000b}.project-trash ul{list-style:none;padding:0}.project-trash li{display:flex;gap:16px;justify-content:space-between;align-items:center;background:var(--lia-bg);border:1px solid var(--lia-border);border-radius:6px;padding:15px;margin:12px 0}.project-trash li div{min-width:0}.project-trash strong{overflow-wrap:anywhere}.project-trash small{display:block;margin-top:7px}header .remove-action{font-size:12px}header{height:auto;min-height:88px;flex-wrap:wrap}
+
+/* LIA AudioMaker - panel de progreso ambar neon */
+
+.processing-progress {
+  margin: 12px 16px;
+  padding: 22px 24px;
+  min-height: 92px;
+  border: 1px solid #e4ac54;
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    #24202b 0%,
+    #17151f 55%,
+    #201b22 100%
+  );
+  color: #f5f1ed;
+  box-shadow:
+    0 0 7px rgba(232, 166, 64, 0.65),
+    0 0 20px rgba(232, 166, 64, 0.24),
+    inset 0 0 12px rgba(232, 166, 64, 0.08);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.processing-progress progress {
+  width: min(360px, 100%);
+  height: 12px;
+  accent-color: #e5ad53;
+  flex: 1 1 220px;
+}
+
+.processing-progress button {
+  border: 1px solid #dca34e;
+  border-radius: 12px;
+  background: #29232f;
+  color: #fff4dc;
+  padding: 13px 18px;
+  font-weight: 600;
+  box-shadow: 0 0 8px rgba(229, 173, 83, 0.2);
+}
+
+.processing-progress button:hover {
+  background: #382b2e;
+  box-shadow: 0 0 12px rgba(229, 173, 83, 0.4);
+}
+
+@media (max-width: 700px) {
+  .processing-progress {
+    margin: 10px;
+    padding: 16px;
+    font-size: 14px;
+  }
+}

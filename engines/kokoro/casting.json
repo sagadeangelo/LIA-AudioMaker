@@ -1,0 +1,17 @@
+{
+    "narrator":  {
+                     "voice":  "em_santa",
+                     "speed":  1
+                 },
+    "version":  "0.1.9",
+    "male_character":  {
+                           "voice":  "em_alex",
+                           "speed":  1
+                       },
+    "language":  "es",
+    "female_character":  {
+                             "voice":  "ef_dora",
+                             "speed":  1
+                         },
+    "engine":  "kokoro"
+}
