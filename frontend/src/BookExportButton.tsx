@@ -24,7 +24,8 @@ export default function BookExportButton({
 }) {
   const [open, setOpen] = useState(false);
   const [format, setFormat] = useState<Format>('mp3');
-  const [partial, setPartial] = useState(true);
+  const [partial, setPartial] = useState(false);
+  const [finalReady,setFinalReady]=useState(false);
   const [stats, setStats] = useState<ExportStats | null>(null);
   const [error, setError] = useState('');
   const [job, setJob] = useState<ExportJob | null>(null);
@@ -59,6 +60,7 @@ export default function BookExportButton({
     setOpen(true);
     setError('');
     setStats(null);
+    setFinalReady(false);
 
     try {
       const response = await fetch(
@@ -98,6 +100,9 @@ export default function BookExportButton({
           Boolean(segment.audio)
       ).length;
 
+      const stateResponse=await fetch(`/api/projects/${projectId}/finalization`);
+      if(!stateResponse.ok)throw new Error(await readError(stateResponse));
+      setFinalReady((await stateResponse.json()).ready);
       setStats({
         chapters: chapters.length,
         generated,
@@ -107,6 +112,8 @@ export default function BookExportButton({
       setError(err instanceof Error ? err.message : String(err));
     }
   }
+
+  useEffect(()=>{const launch=()=>{setPartial(false);void openPanel()};window.addEventListener('lia-open-book-export',launch);return()=>window.removeEventListener('lia-open-book-export',launch)},[projectId]);
 
   function triggerDownload(id: string) {
     if (downloadedId.current === id) return;
@@ -186,7 +193,7 @@ export default function BookExportButton({
   const canExport =
     !!stats &&
     stats.generated > 0 &&
-    (partial || stats.pending === 0) &&
+    (partial || stats.pending === 0 && finalReady) &&
     !working;
 
   return (
@@ -263,6 +270,7 @@ export default function BookExportButton({
 
             {!job && (
               <>
+                {!finalReady&&<p style={{color:'#f5bd72'}}>Hay correcciones o revisiones pendientes. <button onClick={()=>{setOpen(false);window.dispatchEvent(new Event('lia-open-project-status'))}}>Revisar estado del libro</button></p>}
                 <p>Selecciona el formato del audiolibro:</p>
                 <div style={{
                   display: 'flex',

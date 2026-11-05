@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react';
+import {VoiceOptions} from './VoiceOptions';
+import {voiceLabel,voiceGroup,validSpeed} from './voiceConfig';
+type RepairCharacter={id:string;name:string;voice:string;speed:number;color:string};
+const nameKey=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 
 type AudioItem = {
   id: string;
@@ -36,8 +40,10 @@ type AudioLibraryData = {
 
 export default function AudioLibraryPanel({
   projectId,
+  onUpdate,
 }: {
   projectId: string | null;
+  onUpdate?: (project:any)=>void;
 }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<AudioLibraryData | null>(null);
@@ -48,7 +54,9 @@ export default function AudioLibraryPanel({
   const [repairing, setRepairing] = useState<string | null>(null);
   const [repairVoice, setRepairVoice] = useState('em_santa');
   const [repairSpeed, setRepairSpeed] = useState(1);
-  const [repairSpeaker, setRepairSpeaker] = useState('Narrador');
+  const [repairCharacterId,setRepairCharacterId]=useState('');
+  const [characters,setCharacters]=useState<RepairCharacter[]>([]);
+  const repairCharacter=characters.find(c=>c.id===repairCharacterId);
   const [repairError, setRepairError] = useState('');
   const [availableRepairVoices, setAvailableRepairVoices] =
     useState<string[]>([]);
@@ -59,15 +67,16 @@ export default function AudioLibraryPanel({
     setError('');
 
     try {
-      const response = await fetch(
-        `/api/projects/${encodeURIComponent(projectId)}/audio-library`
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      const [response,castResponse] = await Promise.all([
+        fetch(`/api/projects/${encodeURIComponent(projectId)}/audio-library`),
+        fetch(`/api/projects/${encodeURIComponent(projectId)}`),
+      ]);
+      if (!response.ok || !castResponse.ok) {
+        throw new Error(`No se pudo cargar la biblioteca o el elenco (HTTP ${!response.ok?response.status:castResponse.status})`);
       }
-
       const result: AudioLibraryData = await response.json();
+      const project = await castResponse.json();
+      setCharacters(project.characters || []);
       setData(result);
       setChapterId(current =>
         result.chapters.some(ch => ch.id === current)
@@ -85,6 +94,9 @@ export default function AudioLibraryPanel({
     setData(null);
     setChapterId('');
     setOpen(false);
+    setCharacters([]);
+    setRepairing(null);
+    setRepairCharacterId('');
   }, [projectId]);
 
   useEffect(() => {
@@ -123,29 +135,39 @@ export default function AudioLibraryPanel({
   function openRepair(s: AudioItem) {
     if (s.audio || s.status === 'generated') return;
     setRepairing(s.id);
-    setRepairVoice(s.voice || 'em_santa');
-    setRepairSpeed(s.speed ?? 1);
-    setRepairSpeaker(s.speaker || 'Narrador');
+    const profile=characters.find(c=>nameKey(c.name)===nameKey(s.speaker||''));
+    setRepairCharacterId(profile?.id||'');
+    setRepairVoice(profile?.voice||s.voice||'em_santa');
+    setRepairSpeed(profile?.speed??s.speed??1);
     setRepairError('');
   }
 
   async function generateOne(s: AudioItem) {
-    if (!projectId || s.audio || loading) return;
+    if (!projectId || s.audio || loading || !repairCharacter) return;
 
     setLoading(true);
     setRepairError('');
 
     try {
+      const castResponse=await fetch(`/api/projects/${projectId}`);
+      if(!castResponse.ok)throw new Error('No se pudo verificar el elenco actual');
+      const current=await castResponse.json();
+      const profile:RepairCharacter|undefined=current.characters?.find((c:RepairCharacter)=>c.id===repairCharacterId);
+      if(!profile||['name','voice','speed','color'].some(k=>profile[k as keyof RepairCharacter]!==repairCharacter[k as keyof RepairCharacter])){
+        setCharacters(current.characters||[]);setRepairCharacterId('');
+        throw new Error('El perfil del personaje cambió. Vuelve a seleccionarlo para cargar su voz actual.');
+      }
+      if(!validSpeed(repairVoice,repairSpeed))throw new Error('Elige una voz compatible y una velocidad entre 0.5 y 2.0');
       const patch = await fetch(
         `/api/projects/${projectId}/segments/${s.id}`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            speaker: repairSpeaker,
+            speaker: profile.name,
             voice: repairVoice,
             speed: repairSpeed,
-            color: '#00D9CE',
+            color: profile.color,
             reviewed: true,
           }),
         }
@@ -156,6 +178,8 @@ export default function AudioLibraryPanel({
         throw new Error(`No se pudo guardar: ${detail}`);
       }
 
+      const patched=await patch.json();
+      onUpdate?.(patched);
       const response = await fetch(
         `/api/projects/${projectId}/segments/${s.id}/generate?compact=true`,
         { method: 'POST' }
@@ -166,6 +190,8 @@ export default function AudioLibraryPanel({
         throw new Error(`No se pudo generar: ${detail}`);
       }
 
+      const generated=await response.json();
+      onUpdate?.({...patched,chapters:patched.chapters.map((ch:any)=>({...ch,segments:ch.segments.map((item:any)=>item.id===s.id?generated.segment:item)}))});
       setRepairing(null);
       await refresh();
     } catch (e) {
@@ -251,7 +277,7 @@ export default function AudioLibraryPanel({
               <div>
                 <h2 style={{ margin: 0 }}>Biblioteca de Audios</h2>
                 <p style={{ color: '#acb8c8' }}>
-                  Historial permanente del proyecto
+                  Archivos guardados del proyecto · Generado no significa pronunciación actualizada
                 </p>
               </div>
 
@@ -280,6 +306,7 @@ export default function AudioLibraryPanel({
               </p>
             )}
 
+            <button type="button" onClick={()=>window.dispatchEvent(new Event("lia-open-project-status"))}>Ver estado del libro y aplicar correcciones</button>
             {loading && <p>Consultando audios guardados...</p>}
 
             {data && (
@@ -448,42 +475,36 @@ export default function AudioLibraryPanel({
                                 display: 'grid',
                                 gap: 10,
                               }}>
-                                <strong>Reparaci?n individual</strong>
+                                <strong>Reparación individual</strong>
 
                                 <label>
                                   Personaje
-                                  <input
-                                    value={repairSpeaker}
-                                    onChange={e =>
-                                      setRepairSpeaker(e.target.value)
-                                    }
-                                  />
-                                </label>
-
-                                <label>
-                                  Voz
-                                  <select
-                                    value={repairVoice}
-                                    onChange={e =>
-                                      setRepairVoice(e.target.value)
-                                    }
-                                  >
-                                    {[
-                                      ...new Set([
-                                        repairVoice,
-                                        ...availableRepairVoices,
-                                      ]),
-                                    ].map(voice => (
-                                      <option key={voice} value={voice}>
-                                        {voice}
-                                      </option>
-                                    ))}
+                                  <select aria-label="Personaje del fragmento" style={{display:"block",width:"100%",maxWidth:"100%",boxSizing:"border-box"}} disabled={loading} value={repairCharacterId} onChange={e=>{
+                                    const character=characters.find(c=>c.id===e.target.value);
+                                    setRepairCharacterId(character?.id||'');
+                                    if(character){setRepairVoice(character.voice);setRepairSpeed(character.speed)}
+                                    setRepairError('');
+                                  }}>
+                                    <option value="">{s.speaker&&nameKey(s.speaker)!=='sin atribuir'?s.speaker+' — selecciona su perfil':'Selecciona un personaje del elenco'}</option>
+                                    {characters.map(character=><option key={character.id} value={character.id}>{character.name} — {voiceLabel(character.voice)} · {character.speed}x</option>)}
                                   </select>
                                 </label>
+                                {repairCharacter&&<p role="status">Perfil guardado de <b>{repairCharacter.name}</b>: {voiceLabel(repairCharacter.voice)} · {voiceGroup(repairCharacter.voice)} · {repairCharacter.speed}x</p>}
+                                {!characters.length&&<p>No hay perfiles disponibles. Configura el elenco y actualiza la biblioteca.</p>}
+                                <label>
+                                  Voz para este fragmento
+                                  <select aria-label="Voz del fragmento" style={{display:"block",width:"100%",maxWidth:"100%",boxSizing:"border-box"}} disabled={loading||!repairCharacter} value={repairVoice} onChange={e=>setRepairVoice(e.target.value)}>
+                                    <VoiceOptions voices={availableRepairVoices} selected={repairVoice}/>
+                                  </select>
+                                </label>
+                                {repairCharacter&&(repairVoice!==repairCharacter.voice||repairSpeed!==repairCharacter.speed)&&<small>El cambio manual se guardará solo en este fragmento. El perfil del personaje conserva {voiceLabel(repairCharacter.voice)} · {repairCharacter.speed}x.</small>}
 
                                 <label>
-                                  Velocidad: {repairSpeed}
+                                  Velocidad · {repairSpeed}x
                                   <input
+                                    style={{display:"block",marginTop:6,maxWidth:"100%"}}
+                                    aria-label="Velocidad del fragmento"
+                                    disabled={loading||!repairCharacter}
                                     type="number"
                                     min="0.5"
                                     max="2"
@@ -496,8 +517,7 @@ export default function AudioLibraryPanel({
                                 </label>
 
                                 <p>
-                                  Se confirmar? la revisi?n y se generar?
-                                  solamente este fragmento.
+                                  Al guardar confirmas el hablante y la revisión del contenido. Se generará solamente este fragmento.
                                 </p>
 
                                 {repairError && (
@@ -513,7 +533,7 @@ export default function AudioLibraryPanel({
                                   <button
                                     type="button"
                                     style={buttonStyle}
-                                    disabled={loading}
+                                    disabled={loading||!repairCharacter||!validSpeed(repairVoice,repairSpeed)}
                                     onClick={() => void generateOne(s)}
                                   >
                                     {loading

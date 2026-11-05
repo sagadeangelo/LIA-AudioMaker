@@ -1,0 +1,5 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import ts from 'typescript';
+const js=ts.transpileModule(fs.readFileSync(new URL('../src/reviewSaveState.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ES2022}}).outputText;
+const {reviewSaveState}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+test('saved requested change is explicitly saved but pending application',()=>{const r={decision:'needs_change',note:'Separar las voces.'};const s=reviewSaveState(r,r.decision,r.note);assert.equal(s.saved,true);assert.equal(s.dirty,false);assert.match(s.message,/pendiente de aplicar/);assert.equal(reviewSaveState(r,r.decision,'Otra decisión').dirty,true)});
+test('drafts and unchanged empty pending state cannot claim saved',()=>{assert.equal(reviewSaveState(null,'pending','').saved,false);assert.equal(reviewSaveState(null,'pending','').dirty,false);assert.equal(reviewSaveState(null,'needs_change','Conservar texto').dirty,true);assert.equal(reviewSaveState({decision:'reviewed',note:'Leído'},'reviewed',' Leído ').saved,true)});

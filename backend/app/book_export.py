@@ -1,4 +1,4 @@
-﻿import os
+import os
 import shutil
 import subprocess
 import tempfile
@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
 from .scenes import included
+from .voice_editor import approved_audio
 
 
 def export_book(project, data_dir: Path, audio_format: str, partial: bool):
@@ -32,7 +33,7 @@ def export_book(project, data_dir: Path, audio_format: str, partial: bool):
     missing = []
 
     for s in all_segments:
-        name = s.get("audio")
+        name = approved_audio(s)
         if not name:
             missing.append(s)
             continue

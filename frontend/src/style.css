@@ -62,3 +62,15 @@
     font-size: 14px;
   }
 }
+
+/* Voice Editor reuses the existing studio palette. */
+.voice-editor-overlay{position:fixed;inset:0;background:#000b;z-index:80;display:grid;place-items:center;padding:20px}
+.voice-editor{width:min(1180px,96vw);max-height:92vh;overflow:auto;background:#171222;color:#eee;border:1px solid #9c68ff;border-radius:14px;padding:24px;box-sizing:border-box}
+.voice-editor-heading{position:sticky;top:-24px;z-index:2;background:#171222;padding:12px 0;display:flex;justify-content:space-between;align-items:center;gap:16px}.voice-editor-heading h2{margin:0}
+.voice-editor-columns{display:grid;grid-template-columns:minmax(260px,1fr) minmax(340px,1.5fr);gap:28px}
+.voice-editor label{display:flex;flex-direction:column;gap:6px;margin:12px 0}.voice-editor label:has(input[type=checkbox]){flex-direction:row;align-items:center}
+.voice-editor input:not([type=checkbox]),.voice-editor select,.voice-editor textarea{box-sizing:border-box;width:100%;color:inherit;background:#0a090f;border:1px solid #494055;border-radius:6px;padding:10px}
+.voice-editor textarea{min-height:140px}.voice-editor audio{display:block;width:100%;margin:10px 0}.voice-editor small{display:block;color:#b7afc6;margin:8px 0}
+.voice-rules{padding:0;list-style:none}.voice-rules li,.voice-version,.voice-job,.voice-preview{border:1px solid #494055;border-radius:8px;padding:14px;margin:14px 0;overflow-wrap:anywhere}
+.voice-editor progress{display:block;width:100%;margin:10px 0}.voice-editor button{margin:4px}.voice-editor blockquote{margin:10px 0;padding:12px;border-left:3px solid #00d9ce}.voice-editor details{padding:8px 0}
+@media(max-width:760px){.voice-editor-columns{grid-template-columns:1fr}.voice-editor-overlay{padding:6px}.voice-editor{padding:16px;width:98vw}.voice-editor-heading{align-items:flex-start}}

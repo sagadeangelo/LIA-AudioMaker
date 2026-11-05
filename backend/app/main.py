@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, text as sql
 from .narrative import extract, analyze, key
 from .casting import ensure_cast, needs_content_review, assign, undo
 from .scenes import included, is_separator, detect_scenes
+from .voice_editor import approved_audio, rendered, snapshot, now, normalize_versions
 
 DATA = Path(os.getenv('DATA_DIR', 'data')).resolve(); DATA.mkdir(parents=True, exist_ok=True)
 engine = create_engine(os.getenv('DATABASE_URL', 'sqlite:///' + str(DATA / 'lia.db')))
@@ -36,7 +37,7 @@ def segment(p, sid):
             if s['id'] == sid: return s
     raise HTTPException(404,'Fragmento no encontrado')
 
-app = FastAPI(title='LIA AudioMaker', version='0.1.6')
+app = FastAPI(title='LIA AudioMaker', version='0.6.27')
 app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173','http://127.0.0.1:5173'], allow_methods=['*'], allow_headers=['*'])
 class Project(BaseModel):
     title: str = Field(min_length=1,max_length=200)
@@ -187,15 +188,20 @@ def generate(pid:str,sid:str,compact:bool=False):
         if s['review']: raise HTTPException(409,'Confirma el hablante y la revisiÃ³n del contenido antes de generar')
         name=str(uuid.uuid4())+'.wav'; path=DATA/name
         try:
-            result=synthesize(s['text'],s['voice'],s['speed'],path)
+            tts_text=rendered(p,s)
+            result=synthesize(tts_text,s['voice'],s['speed'],path)
         except (ValueError, TypeError) as exc:
             path.unlink(missing_ok=True)
             raise HTTPException(422,str(exc)) from exc
         except (KokoroError, AzureSpeechError, subprocess.SubprocessError, OSError, RuntimeError) as exc:
             path.unlink(missing_ok=True)
             raise HTTPException(502,'Error en motor TTS; no se modificÃ³ el fragmento') from exc
-        s.setdefault('versions',[]).append({'file':name,'voice':s['voice'],'speed':s['speed'],'text':s['text'],'provider':result['provider']})
-        s['audio']=name; s['duration']=result['duration']; s['revision']=s.get('revision',0)+1; save(p)
+        normalize_versions(s, DATA)
+        proposal = bool(s.get('audio'))
+        s.setdefault('versions',[]).append({'id':str(uuid.uuid4()),'segment_id':sid,'file':name,'voice':s['voice'],'speed':s['speed'],'text':tts_text,'provider':result['provider'],'status':'proposed' if proposal else 'approved','duration':result['duration'],'created_at':now(),'source_snapshot':snapshot(s)})
+        if not proposal:
+            s['audio']=name; s['duration']=result['duration']; s['revision']=s.get('revision',0)+1
+        save(p)
     return {'segment':s} if compact else p
 @app.get('/api/audio/{name}')
 def audio(name:str):
@@ -216,7 +222,11 @@ def waveform(name:str):
 @app.get('/api/projects/{pid}/export-book')
 def export_complete_book(pid: str, format: str = 'mp3', partial: bool = False):
     from .book_export import export_book
-    return export_book(get(pid), DATA, format, partial)
+    p = get(pid)
+    if not partial:
+        from .finalization import require_ready
+        require_ready(p)
+    return export_book(p, DATA, format, partial)
 
 @app.get('/api/projects/{pid}/chapters/{cid}/export')
 def export(pid:str,cid:str,format:str='wav'):
@@ -225,7 +235,7 @@ def export(pid:str,cid:str,format:str='wav'):
     if not ch: raise HTTPException(404)
     active=[s for s in ch['segments'] if included(s)]
     if not active: raise HTTPException(409,'El capÃ­tulo no tiene fragmentos incluidos')
-    if any(not s['audio'] for s in active): raise HTTPException(409,'Genera todos los fragmentos incluidos del capÃ­tulo')
+    if any(not approved_audio(s) for s in active): raise HTTPException(409,'Genera todos los fragmentos incluidos del capÃ­tulo')
     if not shutil.which('ffmpeg'): raise HTTPException(503,'FFmpeg no disponible')
     token=str(uuid.uuid4()); listing=DATA/(token+'.txt'); output=DATA/(token+'.'+format)
     listing.write_text('\n'.join("file '"+s['audio']+"'" for s in active),encoding='utf-8')
@@ -411,7 +421,11 @@ def start_book_export_job(
     partial: bool = True,
 ):
     from .book_export_jobs import start
-    return start(get(pid), DATA, format, partial)
+    p = get(pid)
+    if not partial:
+        from .finalization import require_ready
+        require_ready(p)
+    return start(p, DATA, format, partial)
 
 
 @app.get('/api/export-book/jobs/{job_id}')
@@ -424,3 +438,51 @@ def get_book_export_job(job_id: str):
 def download_book_export_job(job_id: str):
     from .book_export_jobs import download
     return download(job_id)
+
+# Additive pronunciation editor; legacy generation remains available.
+from .voice_editor import router as voice_editor_router, recover_jobs
+app.include_router(voice_editor_router)
+recover_jobs()
+
+from .manuscript_analysis import router as analysis_router, recover_jobs as recover_analysis_jobs
+app.include_router(analysis_router)
+recover_analysis_jobs()
+
+from .finalization import router as finalization_router
+app.include_router(finalization_router)
+
+from .editorial_plan import router as editorial_router
+app.include_router(editorial_router)
+
+from .freesound import router as freesound_router
+app.include_router(freesound_router)
+
+from .sound_mixer import router as sound_mixer_router, recover_mixes
+app.include_router(sound_mixer_router)
+recover_mixes()
+
+from .sound_checklist import router as sound_checklist_router
+app.include_router(sound_checklist_router)
+
+from .production_exchange import router as production_exchange_router
+app.include_router(production_exchange_router)
+
+from .production_split import router as production_split_router
+app.include_router(production_split_router)
+
+from .production_runner import router as production_runner_router, recover as recover_production_runs
+app.include_router(production_runner_router)
+recover_production_runs()
+
+from .music_override import router as music_override_router
+app.include_router(music_override_router)
+
+from .voice_priority import router as voice_priority_router
+app.include_router(voice_priority_router)
+
+from .media_library import router as media_library_router,initialize as initialize_media_library
+initialize_media_library()
+app.include_router(media_library_router)
+
+from .auto_music import router as auto_music_router
+app.include_router(auto_music_router)

@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 
 def project_files(project):
@@ -20,6 +20,43 @@ def project_files(project):
                 if filename:
                     names.add(filename)
 
+    for sound in project.get("sound_effects", []):
+        if sound.get("file"):
+            names.add(sound["file"])
+
+    for mix in project.get("sound_mixes", []) + project.get("sound_project_mixes", []):
+        if mix.get("file"):
+            names.add(mix["file"])
+        for profile in mix.get("mp3_profiles", {}).values():
+            if profile.get("file"):
+                names.add(profile["file"])
+        if mix.get("mp3_file"):
+            names.add(mix["mp3_file"])
+
+    for item in list(project.get("sound_scene_previews", {}).values()) + project.get("sound_scene_preview_history", []) + project.get("sound_scene_exports", []):
+        if item.get("file"):
+            names.add(item["file"])
+    for item in project.get("sound_scene_exports", []) + project.get("sound_project_mixes", []):
+        for source in item.get("sources", {}).values():
+            if source.get("file"):
+                names.add(source["file"])
+    for plan in project.get("production_plans", []):
+        for split in plan.get("splits", []):
+            original = split.get("original", {})
+            if original.get("audio"):
+                names.add(original["audio"])
+            for version in original.get("versions", []):
+                if version.get("file"):
+                    names.add(version["file"])
+    for run in project.get("production_runs", []):
+        for k in ("file", "mp3_file"):
+            if run.get(k):names.add(run[k])
+        for clip in run.get("clips", {}).values():
+            if clip.get("file"):names.add(clip["file"])
+        for original in run.get("backups", []):
+            if original.get("audio"):names.add(original["audio"])
+            for version in original.get("versions", []):
+                if version.get("file"):names.add(version["file"])
     return names
 
 

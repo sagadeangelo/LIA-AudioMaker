@@ -13,7 +13,7 @@ def test_legacy_cast_all_chapters_and_new_character_persist():
  assert {x['name'] for x in r['characters']}=={'Narrador','Ana','Marcos'}
  ids=[x['id'] for x in r['characters']]
  assert ids==[x['id'] for x in c.get(f'/api/projects/{p["id"]}').json()['characters']]
- r=c.post(f'/api/projects/{p["id"]}/characters',json={'name':'Rachel','voice':'es+f2','color':'#9C68FF','speed':180})
+ r=c.post(f'/api/projects/{p["id"]}/characters',json={'name':'Rachel','voice':'ef_dora','color':'#9C68FF','speed':1.15})
  assert r.status_code==201
  assert c.get(f'/api/projects/{p["id"]}').json()['characters'][-1]['name']=='Rachel'
  assert c.post(f'/api/projects/{p["id"]}/characters',json={'name':'RÁCHEL'}).status_code==409
@@ -52,12 +52,12 @@ def test_content_review_is_separate_from_assignment():
 
 def test_profile_configuration_future_assignments_and_conflict():
  p=book();pid=p['id'];char=p['characters'][1];s=p['chapters'][0]['segments'][0]
- body={k:char[k] for k in ('name','voice','speed','color')};body.update(voice='es+f2',speed=190,color='#498BFF')
+ body={k:char[k] for k in ('name','voice','speed','color')};body.update(voice='ef_dora',speed=1.25,color='#498BFF')
  r=c.patch(f'/api/projects/{pid}/characters/{char["id"]}',json=body);assert r.status_code==200
  assert r.json()['chapters']==p['chapters']
  result=c.post(f'/api/projects/{pid}/segments/{s["id"]}/assign',json={'character_id':char['id']}).json()
  s=result['project']['chapters'][0]['segments'][0]
- assert (s['voice'],s['speed'],s['color'])==('es+f2',190,'#498BFF')
+ assert (s['voice'],s['speed'],s['color'])==('ef_dora',1.25,'#498BFF')
  c.patch(f'/api/projects/{pid}/segments/{s["id"]}',json={k:s[k] for k in ('speaker','voice','speed','color')})
  assert c.post(f'/api/projects/{pid}/segments/{s["id"]}/undo-assignment',json={'token':result['undo_token']}).status_code==409
  assert c.post(f'/api/projects/{pid}/segments/{s["id"]}/assign',json={'character_id':'foreign'}).status_code==404

@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
 from .scenes import included
+from .voice_editor import approved_audio
 
 LOCK = threading.RLock()
 JOBS = {}
@@ -69,7 +70,7 @@ def start(project, data_dir, audio_format, partial):
             if not included(segment):
                 continue
 
-            name = segment.get("audio")
+            name = approved_audio(segment)
 
             if not isinstance(name, str) or Path(name).name != name:
                 missing += 1

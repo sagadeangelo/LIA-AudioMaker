@@ -220,3 +220,67 @@ La documentación original describía una **implementación 0.1.0** con análisi
 *Desarrollo local · Evolución continua · Control sobre los archivos originales*
 
 </div>
+
+
+## Voice Editor — 0.2.0 (rama de trabajo, validación local pendiente)
+
+El botón **LIA Voice Editor** permite guardar un diccionario por proyecto y
+personaje, revisar coincidencias por fragmento/capítulo/libro y generar propuestas
+con Kokoro o Azure. El texto del manuscrito no cambia. Puedes reproducir el audio
+actual y cada propuesta, aprobar, descartar o restaurar versiones anteriores.
+Las exportaciones de capítulo y libro utilizan el audio aprobado activo.
+
+Los lotes requieren vista previa y confirmación. Los nuevos trabajos se guardan
+en la tabla `jobs`, muestran progreso y se pueden cancelar entre fragmentos.
+Un reinicio los marca interrumpidos; no reintenta ni consume Azure automáticamente.
+Los WAV anteriores y las propuestas descartadas se conservan.
+
+Pruebas: 34 backend, 11 frontend, compilación TypeScript/Vite y flujo Chromium
+con audio PCM de laboratorio. No se ha validado esta fase con el Kokoro/Azure
+del usuario ni ejecutado Docker en este entorno. No se declara corregida la
+pronunciación de una palabra hasta escucharla con el motor elegido.
+
+Detalles: [Voice Editor](docs/VOICE_EDITOR.md),
+[auditoría y plan de las cuatro fases](docs/AUDITORIA_MODULOS.md).
+
+
+### 0.2.1: probar pronunciaciones antes de guardar
+
+Voice Editor incorpora el catálogo de voces existente, velocidad y frase de
+prueba opcional. Puedes escuchar original y variantes, ajustar letras/acentos y
+comparar muestras antes de guardar una regla, sin modificar el casting ni los
+fragmentos del libro. Ver el [flujo y límites](docs/VOICE_EDITOR.md).
+
+
+### 0.2.2: eliminar muestras del laboratorio
+
+Cada audio de prueba incluye **Eliminar muestra** con confirmación. El backend
+protege cualquier archivo utilizado por proyectos o versiones. Las pruebas no
+eliminadas se pueden recuperar al reabrir el laboratorio. No modifica el libro.
+
+
+### 0.2.3: menciones y pronunciación uniforme
+
+El panel **Quiénes dicen este nombre** localiza menciones y muestra hablante, voz,
+capítulo, escena y fragmento. Permite probar una escritura con todas las voces
+identificadas y guardar una regla uniforme para todos los hablantes y motores,
+incluido el narrador. Las reglas incompatibles se desactivan conservando historial.
+Guardar no modifica audios existentes: requieren propuestas y aprobación.
+
+### 0.3.0: revisión del manuscrito con evidencia
+
+**Analizar manuscrito** genera un informe local de candidatos de nombres, lugares,
+escenas, emociones y posibles sonidos. Puedes confirmar perfiles, anotar sugerencias
+y dividir/deshacer escenas sin cambiar textos, casting o WAV. El importador reconoce
+etiquetas mixtas como `Lindsay:` y `Gibrán:`. Es un sistema de reglas revisable, no
+una garantía de identificación semántica completa. No inserta efectos automáticamente.
+Ver [funcionamiento y límites](docs/MANUSCRIPT_ANALYSIS.md).
+
+### 0.3.1: ajustar una voz e incorporar correcciones
+
+En las menciones de un nombre puedes editar la pronunciación para una voz concreta
+sin cambiar las demás. **Revisar incorporación → Incorporar en el audio** genera y
+activa versiones nuevas de los fragmentos afectados, previa confirmación, conservando
+los WAV anteriores y permitiendo restaurar el lote. Se regeneran los fragmentos
+completos; no se recorta ni inserta la muestra aislada del nombre. Las exportaciones
+anteriores se conservan. Ver [flujo y límites](docs/VOICE_EDITOR.md).

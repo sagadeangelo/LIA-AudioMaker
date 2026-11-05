@@ -10,14 +10,14 @@ def test_voice_setup_whole_book_preserves_unknown_and_source():
  p=book();pid=p['id'];before=p['chapters'];char=next(x for x in p['characters'] if x['name']=='Ana')
  choices=[{k:x[k] for k in ('id','voice','speed','color')} for x in p['characters']]
  for x in choices:
-  if x['id']==char['id']: x.update(voice='es+f2',speed=185,color='#498BFF')
+  if x['id']==char['id']: x.update(voice='ef_dora',speed=1.2,color='#498BFF')
  r=c.post(f'/api/projects/{pid}/casting/apply',json={'characters':choices});assert r.status_code==200
  result=r.json();after=result['project'];assert result['updated']==3;assert result['pending_review']==2
  for ch in after['chapters']:
   for s in ch['segments']:
    old=next(x for b in before for x in b['segments'] if x['id']==s['id'])
    assert s['text']==old['text'] and s['source_text']==old['source_text']
-   if s['speaker']=='Ana':assert (s['voice'],s['speed'],s['color'])==('es+f2',185,'#498BFF')
+   if s['speaker']=='Ana':assert (s['voice'],s['speed'],s['color'])==('ef_dora',1.2,'#498BFF')
    if s['speaker']=='Sin atribuir':assert s==old
  assert after['casting_configured_at']
  assert c.get(f'/api/projects/{pid}').json()['characters']==after['characters']
@@ -53,12 +53,8 @@ def test_large_batch_undo_and_conflicts_are_atomic():
  assert c.post(f'/api/projects/{pid}/segments/undo-batch',json={'token':result['undo_token']}).status_code==409
  assert c.get(f'/api/projects/{pid}').json()==before
 
-def test_real_voice_preview_and_compact_generation():
- import shutil
- if not (shutil.which('espeak-ng') or shutil.which('espeak')):
-  assert c.post('/api/voices/preview',json={'voice':'es'}).status_code==503
-  return
- r=c.post('/api/voices/preview',json={'voice':'es+f2','speed':170});assert r.status_code==200
+def test_provider_preview_and_compact_generation(fake_tts):
+ r=c.post('/api/voices/preview',json={'voice':'ef_dora','speed':1.1});assert r.status_code==200
  name=r.json()['file']
  assert c.get('/api/audio/'+name).status_code==200
  assert max(c.get('/api/audio/'+name+'/waveform').json())>0

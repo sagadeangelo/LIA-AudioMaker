@@ -1,0 +1,13 @@
+.sound-checklist{border:1px solid #5d5170;padding:18px;border-radius:8px;margin:22px 0}
+.sound-checklist h3{margin-top:0}.sound-checklist-items{max-height:450px;overflow:auto;padding-right:8px}
+.sound-checklist .sound-acquired{border-color:#318c75;background:#17382c33}
+.sound-acquired>strong>span{text-decoration:line-through;text-decoration-thickness:2px;color:#9be3c8}
+.sound-checklist>label input{width:auto}.sound-checklist details{margin:14px 0;line-height:1.6}
+.sound-checklist summary{cursor:pointer;color:#a9dfe0}.checklist-existing{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-top:12px}
+.checklist-existing label{flex:1;min-width:220px}.checklist-existing select{width:100%;margin-top:8px}
+.sound-recommendation-target{border:1px solid #36bfa6;padding:14px;border-radius:8px;background:#1a403633;margin:12px 0}
+
+.sound-choice-actions {display:flex;gap:.6rem;align-items:flex-start;flex-wrap:wrap;}
+.upload-sound form {margin:.8rem 0;max-width:650px;}
+.upload-sound form label {display:block;margin:.7rem 0;}
+.upload-sound form input,.upload-sound form select {display:block;max-width:100%;}

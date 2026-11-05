@@ -24,6 +24,9 @@ services:
       KOKORO_URL: http://lia_audiomaker_kokoro:8880
       AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION}
       AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY}
+      FREESOUND_CLIENT_ID: ${FREESOUND_CLIENT_ID:-}
+      FREESOUND_API_KEY: ${FREESOUND_API_KEY:-}
+      FREESOUND_CALLBACK_URL: ${FREESOUND_CALLBACK_URL:-http://freesound.org/home/app_permissions/permission_granted/}
     depends_on:
       db:
         condition: service_healthy

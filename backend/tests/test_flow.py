@@ -4,7 +4,7 @@ from app.main import app, DATA
 from app.narrative import analyze, extract
 client=TestClient(app)
 
-def test_full_flow():
+def test_full_flow(fake_tts):
     p=client.post('/api/projects',json={'title':'Prueba'}).json(); pid=p['id']
     original='Capítulo 1\nEl reloj marcó las nueve.\n—Hola, Ana.\n***\nEl tren partió.\nCapítulo 2\nFin.'
     r=client.post(f'/api/projects/{pid}/manuscript',files={'file':('book.txt',original.encode())}); assert r.status_code==200
@@ -13,17 +13,17 @@ def test_full_flow():
     assert client.post(f'/api/projects/{pid}/manuscript',files={'file':('book.txt',b'overwrite')}).status_code==409
     ch=p['chapters'][0]
     for i,s in enumerate(ch['segments']):
-        r=client.patch(f'/api/projects/{pid}/segments/{s["id"]}',json={'speaker':'Ana' if i==1 else 'Narrador','voice':'es+f2' if i==1 else 'es+m3','speed':160,'color':'#00D9CE'}); assert r.status_code==200
+        r=client.patch(f'/api/projects/{pid}/segments/{s["id"]}',json={'speaker':'Ana' if i==1 else 'Narrador','voice':'ef_dora' if i==1 else 'em_santa','speed':1.0,'color':'#00D9CE'}); assert r.status_code==200
         r=client.post(f'/api/projects/{pid}/segments/{s["id"]}/generate')
-        if shutil.which('espeak-ng') or shutil.which('espeak'): assert r.status_code==200
-        else: assert r.status_code==503
+        assert r.status_code==200
     p=client.get(f'/api/projects/{pid}').json()
-    if not shutil.which('espeak-ng'): return
     first=p['chapters'][0]['segments'][0]; second=p['chapters'][0]['segments'][1]
     assert client.get('/api/audio/'+first['audio']).status_code==200
     assert max(client.get('/api/audio/'+first['audio']+'/waveform').json())>0
     p=client.post(f'/api/projects/{pid}/segments/{first["id"]}/generate').json()
     assert len(p['chapters'][0]['segments'][0]['versions'])==2
+    assert p['chapters'][0]['segments'][0]['versions'][-1]['status']=='proposed'
+    assert p['chapters'][0]['segments'][0]['audio']==first['audio']
     assert p['chapters'][0]['segments'][1]['audio']==second['audio']
     for fmt in ['wav','mp3']:
         r=client.get(f'/api/projects/{pid}/chapters/{ch["id"]}/export?format={fmt}'); assert r.status_code==200; assert len(r.content)>1000

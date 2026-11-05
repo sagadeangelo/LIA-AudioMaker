@@ -1,0 +1,17 @@
+# Prioridad de voz · 0.6.26
+
+Requiere v0.6.25. Activada por defecto en las mezclas nuevas de escenas con música o efectos. Se aplica en las preescuchas, mezclas completas y producción automática, porque comparten el mismo renderizador. No genera ni modifica voces, no cambia los valores de las pistas y no sobrescribe archivos originales. Las descargas antiguas permanecen iguales.
+
+En LIA Sound Effects → Música de fondo o Montaje y exportación aparece Priorizar voces automáticamente. Elige capítulo o escena, activa/desactiva y selecciona Suave, Equilibrada o Fuerte. Guarda y genera una mezcla nueva. Una escena con ajuste propio conserva su excepción al modificar el capítulo; Usar ajuste del capítulo elimina la excepción. La protección puede desactivarse por capítulo o escena para recuperar la mezcla de ganancias configuradas sin nivelación adicional.
+
+Técnica: mide RMS medio con FFmpeg del WAV narrado y de cada recorte de fondo. Aplica únicamente una reducción adicional si un fondo supera el techo relativo a la voz; considera cuántas pistas del mismo tipo se suman. Los techos RMS por pista agregada respecto a la narración son música/efectos: Suave -12/-6 dB, Equilibrada -18/-10 dB, Fuerte -24/-14 dB. No amplifica fondos bajos. No es una normalización LUFS ni una garantía de inteligibilidad.
+
+Después de ganancias, recortes, fundidos y colocación temporal, un compresor sidechain reduce cada fondo en función de la narración estéreo. Ratios 2:1, 4:1 y 8:1; ataque 8 ms y liberación 350 ms. La referencia del detector se calibra con el nivel medio narrado y no altera la pista de voz. En pausas se recupera suavemente el nivel base ya protegido. El limitador final sigue controlando picos. Los efectos puntuales tienen un techo menos restrictivo que la música, pero también se atenúan durante el habla; aún pueden requerir ajustes creativos individuales.
+
+Si la narración es prácticamente silenciosa no se calcula una relación relativa contra ruido: se conservan los niveles configurados y no se fuerza una reducción falsa. Una medición fallida devuelve un error en vez de producir una mezcla sin la protección solicitada. El análisis usa pasadas adicionales de FFmpeg, por lo que las mezclas pueden tardar más.
+
+La huella de mezcla incluye versión de protección y configuración efectiva. Las mezclas/preescuchas anteriores se marcan desactualizadas en sus vistas. Las exportaciones de producción ya terminadas no se reescriben automáticamente. La configuración se guarda aparte de los volúmenes por capítulo y escena; no reinicia esos valores. Los cambios se bloquean mientras hay una mezcla activa o producción pendiente para conservar su reanudación.
+
+Instalación: respalda fuentes, ejecuta pruebas aisladas y de interfaz, compila y reconstruye/reinicia backend. Ejecutar sin producción activa. No modifica proyectos ni audios al instalar. Ctrl+F5 al terminar; para la prueba de lluvia elige intensidad Fuerte y genera una nueva preescucha antes de exportar todo.
+
+Pruebas con FFmpeg real: voz sintética con pausas y fondo deliberadamente fuerte; se verifica que tanto música como efectos bajen durante la voz y se recuperen en las pausas, que la componente de voz conserve su amplitud, que los archivos originales no cambien, y que los ajustes por escena prevalezcan sobre el capítulo. También se valida que los cambios invaliden las mezclas previas. La escucha con las grabaciones reales del usuario y la revisión visual Windows siguen pendientes.

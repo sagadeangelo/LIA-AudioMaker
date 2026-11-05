@@ -34,8 +34,8 @@ def extract(data: bytes, suffix: str) -> str:
 import unicodedata
 
 CHAPTER = re.compile(r'^\s*(?:cap[ií]tulo|chapter)\s+(?:[IVXLCDM]+|\d+)(?:\b.*)?$', re.I)
-SPEAKER = re.compile(r'^\s*([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ .]{1,44}):\s*(\S.*)$')
-SEPARATOR = re.compile(r'\s*(?:(?:\*\s*){3,}|#{3,}|(?:\.\s*){5,}|(?:…\s*){2,})\s*')
+SPEAKER = re.compile(r"^\s*([A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ .’'-]{0,59}):\s*(\S.*)$")
+SEPARATOR = re.compile(r'\s*(?:(?:\*\s*){3,}|#{3,}|(?:\.\s*){5,}|(?:…\s*){2,}|(?:[-—_]\s*){3,})\s*')
 NON_SPEAKERS = {'ISBN', 'NOTA', 'NOTAS', 'COPYRIGHT', 'URL', 'HTTP', 'HTTPS', 'ADVERTENCIA'}
 SECTIONS = {'dedicatoria':('Dedicatoria','dedication'), 'prefacio':('Prefacio','preface'),
             'prologo':('Prólogo','preface'), 'epilogo':('Epílogo','epilogue'),
@@ -48,7 +48,9 @@ def key(value):
 
 def speaker_match(line):
     match=SPEAKER.match(line)
-    if not match or match[1].strip() in NON_SPEAKERS or len(match[1].split())>6: return None
+    if not match or match[1].strip().upper() in NON_SPEAKERS or len(match[1].split())>6: return None
+    words=match[1].strip().split()
+    if not all(word[0].isupper() or word.lower() in ('de','del','la','el','los','las','y') for word in words): return None
     return match
 
 def section(line):
